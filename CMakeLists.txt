@@ -34,4 +34,3 @@ ucm_add_dirs(demo TO sources)
 
 add_executable(Demo ${sources})
 target_link_libraries(Demo PRIVATE glad glfw stb glm assimp)
-
