@@ -74,10 +74,10 @@ int main()
 
 	// build and compile shaders
 	// -------------------------
-	Shader shader("shader/pbr.vs", "shader/pbr.fs");
+	Shader shader("shader/pbr.vs", "shader/pbr2.fs");
 
 	shader.use();
-	shader.setVec3("albedo", 0.5f, 0.0f, 0.0f);
+	shader.setVec3("albedo", 0.5f, 0.0f,0.0f);
 	shader.setFloat("ao", 1.0f);
 
 	// lights

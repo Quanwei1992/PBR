@@ -32,29 +32,29 @@ vec3 F_FS(float NdotV,vec3 F0)
 // params N             :表面法向量
 // params H             :half vector
 // parmas roughness     :粗糙度
-vec3 D_GGX_TR(vec3 N,vec3 H,float roughness)
+float D_GGX_TR(vec3 N,vec3 H,float roughness)
 {
     float a  = roughness*roughness;
     float a2 = a * a;
     float NdotH = max(dot(N,H),0.0);
-    float NdotH2 = NdotH2*NdotH2;
+    float NdotH2 = NdotH*NdotH;
 
     float nom = a2;
-    float denom =  NdotH2*(a2+1) + 1; 
+    float denom =  NdotH2 * (a2 - 1.0) + 1.0; 
     denom = PI * denom * denom;
-    return nom / denom;
+    return nom / max(denom,0.0000001); // 避免当 roughness=0 且 NdotH=1.0  时，除 0 
 }
 
 // 几何函数： 几何函数从统计学上近似的求得了微平面间相互遮蔽的比率，这种相互遮蔽会损耗光线的能量。
 // params NDotV       : 表面法向量N与观察方向V的点乘结果
 // params roughness   : 粗糙度
-vec3 G_GGX_S(float NdotV,float roughness)
+float G_GGX_S(float NdotV,float roughness)
 {
     float r = roughness + 1.0;
     // 这里的k是α基于几何函数是针对直接光照还是针对IBL光照的重映射(Remapping) 直接光照和间接光照有所不同
     float k = (r*r) / 8.0; // 直接光照情况下
-    float nom = NDotV;
-    float denom = NDotV * (1.0 - k) + k;
+    float nom = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
     return nom / denom;
 }
 
@@ -63,12 +63,12 @@ vec3 G_GGX_S(float NdotV,float roughness)
 // params N     : 表面法向量
 // params V     : 观察方向
 // params L     : 光源方向
-vec3 G_GGX_Smith(vec3 N,vec3 V,vec3 L,float roughness)
+float G_GGX_Smith(vec3 N,vec3 V,vec3 L,float roughness)
 {
     float NdotV = max(dot(N,V),0.0);
     float NDotL = max(dot(N,L),0.0);
-    float ggx2 = G_GGX_S(NDotV,roughness);
-    float ggx1 = G_GGX_S(NDotL,roughness);
+    float ggx2 = G_GGX_S(NdotV,roughness);
+    float ggx1 = G_GGX_S(NdotV,roughness);
     return ggx1 * ggx2;
 }
 
@@ -83,15 +83,14 @@ void main()
 {		
 
     vec3 N = normalize(Normal);
-    vec3 V = normalize(camPos - WorldPos)
+    vec3 V = normalize(camPos - WorldPos);
 
     vec3 Lo = vec3(0.0);
     for(int i = 0;i<4;i++)
     {
         vec3 L = normalize(lightPositions[i] - WorldPos);
-        vec3 H = normalize(V + L)
-        
-       
+        vec3 H = normalize(V + L);
+           
         float r = length(lightPositions[i] - WorldPos);
         float attenuation = 1.0 / (r * r);   // 衰减
         vec3 radiance = lightColors[i] * attenuation;
@@ -99,15 +98,32 @@ void main()
         // Cook-Torrance specular BRDF
         vec3 F0 = vec3(0.04); // 0.04 大多数电介质表面而言使用 0.04 作为基础反射率已经足够好了
         F0 = mix(F0,albedo,metallic);
-        vec3 F = F_fresnel_schlick(max(dot(H,V),0.0),F0); // 菲涅尔 （高光部分）
+
+        float D = D_GGX_TR(N,H,roughness); // 正态分布
+        vec3 F = F_FS(max(dot(H,V),0.0),F0); // 菲涅尔 （高光部分）
+        float G = G_GGX_Smith(N,V,L,roughness); // 几何遮蔽
+
+        float VdotN = max(dot(V,N),0);
+        float NdotL = max(dot(L,N),0);
+
+        vec3 specular = (D*F*G) / (4.0*VdotN*NdotL + 0.001); // 加 0.001 避免除 0
         
-        float NDF = D_GGX_TR(N,H,roughness);
-        float G = G_GGX_Smith(N,V,L,roughness);
-        
+        vec3 kS = F; // 镜面反射比例其实就是F
+        vec3 kD = vec3(1.0) - kS;
 
+        kD *= 1.0 - metallic; //金属不会折射光线，因此没有漫反射。 所以如果表面是金属的 我们会把系数kD变为0
 
-
+        Lo += (kD*albedo/PI + specular) * radiance * NdotL;
     }
 
-    FragColor = vec4(1,0,0,1.0);
+    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 color = ambient + Lo;
+
+    // Tonemapping (Reinhard)
+    color = color / (color + vec3(1.0));
+
+    // Gamma Correction
+    color = pow(color,vec3(1.0/2.2));
+
+    FragColor = vec4(color,1.0);
 }
