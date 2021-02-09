@@ -30,7 +30,9 @@ SET_TARGET_PROPERTIES (zlib PROPERTIES FOLDER ThirdPart)
 SET_TARGET_PROPERTIES (zlibstatic PROPERTIES FOLDER ThirdPart)
 
 
-ucm_add_dirs(demo TO sources)
 
-add_executable(Demo ${sources})
-target_link_libraries(Demo PRIVATE glad glfw stb glm assimp)
+add_executable(Demo0 demo/Demo0.cpp)
+target_link_libraries(Demo0 PRIVATE glad glfw stb glm assimp)
+
+add_executable(Demo1 demo/Demo1.cpp)
+target_link_libraries(Demo1 PRIVATE glad glfw stb glm assimp)
