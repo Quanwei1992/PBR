@@ -10,6 +10,9 @@ uniform float metallic;
 uniform float roughness;
 uniform float ao;
 
+// IBL
+uniform samplerCube irradianceMap;
+
 // lights
 uniform vec3 lightPositions[4];
 uniform vec3 lightColors[4];
@@ -84,7 +87,8 @@ void main()
 
     vec3 N = normalize(Normal);
     vec3 V = normalize(camPos - WorldPos);
-
+    vec3 F0 = vec3(0.04); // 0.04 大多数电介质表面而言使用 0.04 作为基础反射率已经足够好了
+    F0 = mix(F0,albedo,metallic);
     vec3 Lo = vec3(0.0);
     for(int i = 0;i<4;i++)
     {
@@ -96,8 +100,7 @@ void main()
         vec3 radiance = lightColors[i] * attenuation;
 
         // Cook-Torrance specular BRDF
-        vec3 F0 = vec3(0.04); // 0.04 大多数电介质表面而言使用 0.04 作为基础反射率已经足够好了
-        F0 = mix(F0,albedo,metallic);
+
 
         float D = D_GGX_TR(N,H,roughness); // 正态分布
         vec3 F = F_FS(max(dot(H,V),0.0),F0); // 菲涅尔 （高光部分）
@@ -116,7 +119,15 @@ void main()
         Lo += (kD*albedo/PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.03) * albedo * ao;
+    // 环境光 （IBL）
+    vec3 kS = F_FS(max(dot(N, V), 0.0), F0);
+    vec3 kD = 1.0 - kS;
+    kD *= 1.0 - metallic;
+    vec3 irradiance = texture(irradianceMap, N).rgb;
+    vec3 diffuse      = irradiance * albedo;
+    vec3 ambient = (kD * diffuse) * ao;
+
+
     vec3 color = ambient + Lo;
 
     // Tonemapping (Reinhard)
