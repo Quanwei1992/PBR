@@ -36,3 +36,6 @@ target_link_libraries(Demo0 PRIVATE glad glfw stb glm assimp)
 
 add_executable(Demo1 demo/Demo1.cpp)
 target_link_libraries(Demo1 PRIVATE glad glfw stb glm assimp)
+
+add_executable(Demo2 demo/Demo2.cpp)
+target_link_libraries(Demo2 PRIVATE glad glfw stb glm assimp)
