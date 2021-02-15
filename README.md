@@ -9,7 +9,11 @@
 
 ## IBL 
 
-Only Diffuse
+Only diffuse
 
 ![Diffuse](/images/03.png)
 
+
+With specular
+
+![Diffuse](/images/04.png)

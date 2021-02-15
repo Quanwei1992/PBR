@@ -12,6 +12,8 @@ uniform float ao;
 
 // IBL
 uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D brdfLUT;
 
 // lights
 uniform vec3 lightPositions[4];
@@ -29,6 +31,12 @@ vec3 F_FS(float NdotV,vec3 F0)
 {
     return F0 + (1.0 - F0) * pow((1.0 - NdotV),5.0);
 }
+
+vec3 F_FS_Roughness(float NdotV,vec3 F0,float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(max(1.0 - NdotV, 0.0), 5.0);
+}
+
 
 // 正态分布： Trowbridge-ReitzGGX  估算在受到表面粗糙度的影响下，取向方向与中间向量一致的微平面的数量。
 //           如果我们的微平面中有35%与向量h取向一致，则正态分布函数或者说NDF将会返回0.35
@@ -87,6 +95,7 @@ void main()
 
     vec3 N = normalize(Normal);
     vec3 V = normalize(camPos - WorldPos);
+    vec3 R = reflect(-V, N); 
     vec3 F0 = vec3(0.04); // 0.04 大多数电介质表面而言使用 0.04 作为基础反射率已经足够好了
     F0 = mix(F0,albedo,metallic);
     vec3 Lo = vec3(0.0);
@@ -120,13 +129,18 @@ void main()
     }
 
     // 环境光 （IBL）
-    vec3 kS = F_FS(max(dot(N, V), 0.0), F0);
+    vec3 F =  F_FS_Roughness(max(dot(N, V), 0.0), F0, roughness);
+    vec3 kS = F;
     vec3 kD = 1.0 - kS;
     kD *= 1.0 - metallic;
     vec3 irradiance = texture(irradianceMap, N).rgb;
     vec3 diffuse      = irradiance * albedo;
-    vec3 ambient = (kD * diffuse) * ao;
 
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+    vec3 ambient = (kD * diffuse + specular) * ao;
 
     vec3 color = ambient + Lo;
 
